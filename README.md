@@ -1,3 +1,11 @@
+# Fork
+
+Fork of the async-profiler to experiment with a new version of the AsyncGetCallTrace call in a modified JDK. It only changes the used API call and can display more information.
+
+The diff is relatively small.
+
+For more information and a demo, please refer to [asgct2-demo](https://github.com/parttimenerd/asgct2-demo).
+
 # async-profiler
 
 This project is a low overhead sampling profiler for Java
