@@ -89,8 +89,6 @@ typedef struct {
     ASGCT_CallFrame* frames;
 } ASGCT_CallTrace;
 
-typedef void (*AsyncGetCallTrace)(ASGCT_CallTrace*, jint, void*);
-
 typedef struct {
     void* unused[38];
     jstring (JNICALL *ExecuteDiagnosticCommand)(JNIEnv*, jstring);
@@ -128,7 +126,7 @@ class VM {
   public:
     static void* _libjvm;
     static void* _libjava;
-    static AsyncGetCallTrace _asyncGetCallTrace;
+    static void asyncGetCallTrace(ASGCT_CallTrace *trace, jint max_depth, void* ucontext);
     static JVM_GetManagement _getManagement;
 
     static bool init(JavaVM* vm, bool attach);

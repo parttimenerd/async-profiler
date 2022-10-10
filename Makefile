@@ -12,7 +12,7 @@ CONVERTER_JAR=converter.jar
 CFLAGS=-O3
 CXXFLAGS=-O3 -fno-omit-frame-pointer -fvisibility=hidden
 INCLUDES=-I$(JAVA_HOME)/include -Isrc/res -Isrc/helper
-LIBS=-ldl -lpthread
+LIBS=-ldl -lpthread -L$(JAVA_HOME)/lib/server -ljvm
 MERGE=true
 
 JAVAC=$(JAVA_HOME)/bin/javac
@@ -155,7 +155,6 @@ build/$(CONVERTER_JAR): $(CONVERTER_SOURCES) $(RESOURCES) src/converter/MANIFEST
 test: all
 	test/smoke-test.sh
 	test/thread-smoke-test.sh
-	test/alloc-smoke-test.sh
 	test/load-library-test.sh
 	test/fdtransfer-smoke-test.sh
 	echo "All tests passed"

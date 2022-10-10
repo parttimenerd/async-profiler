@@ -29,6 +29,7 @@
 #include "lockTracer.h"
 #include "log.h"
 #include "vmStructs.h"
+#include <profile.h>
 
 
 // JVM TI agent return codes
@@ -50,9 +51,48 @@ jvmtiError (JNICALL *VM::_orig_RetransformClasses)(jvmtiEnv*, jint, const jclass
 
 void* VM::_libjvm;
 void* VM::_libjava;
-AsyncGetCallTrace VM::_asyncGetCallTrace;
 JVM_GetManagement VM::_getManagement;
 
+void VM::asyncGetCallTrace(ASGCT_CallTrace *trace, jint max_depth, void *ucontext) {
+    ASGST_CallFrame new_frames[2048]; // large enough
+    if (max_depth > 2048) {
+        exit(0);
+    }
+    ASGST_CallTrace new_trace = {0, new_frames, NULL};
+    AsyncGetStackTrace(&new_trace, max_depth, ucontext, 0 /* no native frames */);
+    trace->num_frames = new_trace.num_frames;
+    if (new_trace.num_frames <= 0) {
+        return;
+    }
+    size_t j = 0;
+    for (size_t i = 0; i < new_trace.num_frames; i++) {
+        ASGST_CallFrame frame = new_trace.frames[i];
+        if (frame.type == ASGST_FRAME_JAVA || frame.type == ASGST_FRAME_JAVA_INLINED || frame.type == ASGST_FRAME_NATIVE) {
+            ASGST_JavaFrame jframe = frame.java_frame;
+            int type = 0;
+            if (jframe.type == ASGST_FRAME_JAVA) {
+                auto compLevel = jframe.comp_level;
+                type = FRAME_INTERPRETED;
+                if (compLevel >= 1 && compLevel <= 3) {
+                    type = FRAME_C1_COMPILED;
+                } else if (compLevel == 4) {
+                    type = FRAME_JIT_COMPILED;
+                }
+            } else if (jframe.type == ASGST_FRAME_JAVA_INLINED) {
+                type = FRAME_INLINED;
+            } else {
+                type = FRAME_NATIVE;
+            }
+            ASGCT_CallFrame f = {
+                FrameType::encode(type, jframe.bci),
+                jframe.method_id
+            };
+            trace->frames[j] = f;
+            j++;
+        }
+    }
+    trace->num_frames = j;
+}
 
 static void wakeupHandler(int signo) {
     // Dummy handler for interrupting syscalls
@@ -130,7 +170,7 @@ bool VM::init(JavaVM* vm, bool attach) {
     }
 
     _libjvm = getLibraryHandle("libjvm.so");
-    _asyncGetCallTrace = (AsyncGetCallTrace)dlsym(_libjvm, "AsyncGetCallTrace");
+    auto _asyncGetCallTrace = dlsym(_libjvm, "AsyncGetCallTrace");
     _getManagement = (JVM_GetManagement)dlsym(_libjvm, "JVM_GetManagement");
 
     Profiler* profiler = Profiler::instance();
