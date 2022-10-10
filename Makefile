@@ -17,7 +17,7 @@ MERGE=true
 
 JAVAC=$(JAVA_HOME)/bin/javac
 JAR=$(JAVA_HOME)/bin/jar
-JAVAC_OPTIONS=-source 7 -target 7 -Xlint:-options
+JAVAC_OPTIONS=-source 8 -target 8 -Xlint:-options
 
 SOURCES := $(wildcard src/*.cpp)
 HEADERS := $(wildcard src/*.h src/fdtransfer/*.h)
