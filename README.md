@@ -1,10 +1,10 @@
 # Fork
 
-Fork of the async-profiler to experiment with a new version of the AsyncGetCallTrace call in a modified JDK. It only changes the used API call and can display more information.
+Fork of the async-profiler to experiment with AsyncGetStackTrace, a new version of the AsyncGetCallTrace call, in a modified JDK. It only changes the used API call and can display more information.
 
 The diff is relatively small.
 
-This implementation works only with my [parttimenerd_asgst](https://github.com/parttimenerd/jdk/tree/parttimenerd_asgst) branch (set `JAVA_HOME` accordingly).
+This implementation works only with my [asgct2](https://github.com/parttimenerd/jdk-sandbox/tree/asgct2) branch (set `JAVA_HOME` accordingly).
 
 For more information and a demo, please refer to [asgct2-demo](https://github.com/parttimenerd/asgct2-demo).
 
