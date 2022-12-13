@@ -55,7 +55,7 @@ void VM::asyncGetCallTrace(ASGCT_CallTrace *trace, jint max_depth, void *ucontex
     if (max_depth > 2048) {
         exit(0);
     }
-    new_asgct2::CallTrace new_trace = {0, new_frames, NULL};
+    new_asgct2::CallTrace new_trace = {0, 0, new_frames, NULL};
     _asyncGetCallTrace(&new_trace, max_depth, ucontext, 1);
     trace->num_frames = new_trace.num_frames;
     if (new_trace.num_frames <= 0) {
@@ -165,7 +165,7 @@ bool VM::init(JavaVM* vm, bool attach) {
     }
 
     _libjvm = getLibraryHandle("libjvm.so");
-    _asyncGetCallTrace = (AsyncGetCallTrace)dlsym(_libjvm, "AsyncGetCallTrace2");
+    _asyncGetCallTrace = (AsyncGetCallTrace)dlsym(_libjvm, "AsyncGetStackTrace");
     _getManagement = (JVM_GetManagement)dlsym(_libjvm, "JVM_GetManagement");
 
     Profiler* profiler = Profiler::instance();

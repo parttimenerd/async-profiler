@@ -150,6 +150,7 @@ namespace new_asgct2 {
 
     typedef struct {
         jint num_frames;                // number of frames in this trace
+        uint8_t kind;                   // kind of trace
         CallFrame *frames;              // frames
         void* frame_info;               // more information on frames
     } CallTrace;
