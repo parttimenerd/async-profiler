@@ -20,6 +20,8 @@
 #include "wallClock.h"
 #include "profiler.h"
 #include "stackFrame.h"
+#include <atomic>
+#include <functional>
 
 
 // Maximum number of threads sampled in one iteration. This limit serves as a throttle
@@ -57,10 +59,39 @@ ThreadState WallClock::getThreadState(void* ucontext) {
     return THREAD_RUNNING;
 }
 
-void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
+bool waitWhile(std::function<bool()> condition, long timeoutNs = 10000000) {
+    long start = OS::nanotime();
+    while (condition()) {
+        if (OS::nanotime() - start > timeoutNs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::atomic<void*> _ucontext;
+std::atomic<JNIEnv*> _jni;
+
+bool WallClock::walkStack(int thread_id) {
+    _ucontext = nullptr;
+    _jni = nullptr;
+    OS::sendSignalToThread(thread_id, SIGVTALRM); // send signal to thread
+    if (!waitWhile([&](){ return _ucontext.load() == nullptr;})) { // wait for the ucontext and jni to be set
+        return false;
+    }
+
+    void* ucontext = _ucontext.load();
     ExecutionEvent event;
     event._thread_state = _sample_idle_threads ? getThreadState(ucontext) : THREAD_UNKNOWN;
-    Profiler::instance()->recordSample(ucontext, _interval, EXECUTION_SAMPLE, &event);
+    u64 ret = Profiler::instance()->recordSample(ucontext, _interval, EXECUTION_SAMPLE, &event, _jni.load());
+    _ucontext = nullptr;
+    return ret != 0;
+}
+
+void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
+    _ucontext = ucontext;
+    _jni = VM::jni();
+    waitWhile([&](){ return _ucontext.load() != nullptr;}); // wait for the signal to be processed
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {
@@ -129,7 +160,7 @@ void WallClock::timerLoop() {
             }
 
             if (sample_idle_threads || OS::threadState(thread_id) == THREAD_RUNNING) {
-                if (OS::sendSignalToThread(thread_id, SIGVTALRM)) {
+                if (walkStack(thread_id)) {
                     count++;
                 }
             }

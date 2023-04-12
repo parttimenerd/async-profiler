@@ -348,15 +348,14 @@ int Profiler::convertNativeTrace(int native_frames, const void** callchain, ASGC
     return depth;
 }
 
-int Profiler::getJavaTraceAsync(void* ucontext, ASGCT_CallFrame* frames, int max_depth, StackContext* java_ctx) {
+int Profiler::getJavaTraceAsync(void* ucontext, ASGCT_CallFrame* frames, int max_depth, StackContext* java_ctx, JNIEnv* jni) {
     // Workaround for JDK-8132510: it's not safe to call GetEnv() inside a signal handler
     // since JDK 9, so we do it only for threads already registered in ThreadLocalStorage
-    VMThread* vm_thread = VMThread::current();
+    VMThread* vm_thread = VMThread::fromEnv(jni);
     if (vm_thread == NULL) {
         return 0;
     }
 
-    JNIEnv* jni = VM::jni();
     if (jni == NULL) {
         // Not a Java thread
         return 0;
@@ -594,7 +593,7 @@ void Profiler::fillFrameTypes(ASGCT_CallFrame* frames, int num_frames, NMethod* 
     }
 }
 
-u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Event* event) {
+u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni) {
     atomicInc(_total_samples);
 
     int tid = OS::threadId();
@@ -613,6 +612,10 @@ u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Ev
         return 0;
     }
 
+    if (jni == (JNIEnv*)1) {
+        jni = VM::jni();
+    }
+
     ASGCT_CallFrame* frames = _calltrace_buffer[lock_index]->_asgct_frames;
     jvmtiFrameInfo* jvmti_frames = _calltrace_buffer[lock_index]->_jvmti_frames;
 
@@ -628,7 +631,7 @@ u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Ev
 
     if (event_type <= EXECUTION_SAMPLE) {
         // Async events
-        int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
+        int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx, jni);
         if (java_frames > 0 && java_ctx.pc != NULL && VMStructs::hasMethodStructs()) {
             NMethod* nmethod = CodeHeap::findNMethod(java_ctx.pc);
             if (nmethod != NULL) {
@@ -642,7 +645,7 @@ u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Ev
             // but not directly, since the thread is in_vm rather than in_native
             num_frames += getJavaTraceInternal(jvmti_frames + num_frames, frames + num_frames, _max_stack_depth);
         } else {
-            num_frames += getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
+            num_frames += getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx, jni);
         }
     } else {
         // Lock events and instrumentation events can safely call synchronous JVM TI stack walker.

@@ -123,7 +123,7 @@ class Profiler {
     u32 getLockIndex(int tid);
     bool isAddressInCode(uintptr_t addr);
     int getNativeTrace(void* ucontext, ASGCT_CallFrame* frames, EventType event_type, int tid, StackContext* java_ctx);
-    int getJavaTraceAsync(void* ucontext, ASGCT_CallFrame* frames, int max_depth, StackContext* java_ctx);
+    int getJavaTraceAsync(void* ucontext, ASGCT_CallFrame* frames, int max_depth, StackContext* java_ctx, JNIEnv* jni);
     int getJavaTraceJvmti(jvmtiFrameInfo* jvmti_frames, ASGCT_CallFrame* frames, int start_depth, int max_depth);
     int getJavaTraceInternal(jvmtiFrameInfo* jvmti_frames, ASGCT_CallFrame* frames, int max_depth);
     int convertFrames(jvmtiFrameInfo* jvmti_frames, ASGCT_CallFrame* frames, int num_frames);
@@ -203,7 +203,7 @@ class Profiler {
     void printUsedMemory(std::ostream& out);
     void switchThreadEvents(jvmtiEventMode mode);
     int convertNativeTrace(int native_frames, const void** callchain, ASGCT_CallFrame* frames);
-    u64 recordSample(void* ucontext, u64 counter, EventType event_type, Event* event);
+    u64 recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni = (JNIEnv*)1);
     void recordExternalSample(u64 counter, int tid, EventType event_type, Event* event, int num_frames, ASGCT_CallFrame* frames);
     void recordExternalSample(u64 counter, int tid, EventType event_type, Event* event, u32 call_trace_id);
     void writeLog(LogLevel level, const char* message);

@@ -20,6 +20,7 @@
 #include <jvmti.h>
 #include <signal.h>
 #include <pthread.h>
+#include <atomic>
 #include "engine.h"
 #include "os.h"
 
@@ -31,6 +32,8 @@ class WallClock : public Engine {
 
     volatile bool _running;
     pthread_t _thread;
+
+    bool walkStack(int thread_id);
 
     void timerLoop();
 
