@@ -158,7 +158,8 @@ bool StackFrame::checkInterruptedSyscall() {
 }
 
 bool StackFrame::isSyscall(instruction_t* pc) {
-    return pc[0] == 0x0f && pc[1] == 0x05;
+    size_t value = (size_t)pc;
+    return value > 100 && pc[0] == 0x0f && pc[1] == 0x05;
 }
 
 #endif // __x86_64__
