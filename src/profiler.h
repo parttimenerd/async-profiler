@@ -203,7 +203,7 @@ class Profiler {
     void printUsedMemory(std::ostream& out);
     void switchThreadEvents(jvmtiEventMode mode);
     int convertNativeTrace(int native_frames, const void** callchain, ASGCT_CallFrame* frames);
-    u64 recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni = (JNIEnv*)1);
+    u64 recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni = (JNIEnv*)1, bool recordNative = true);
     void recordExternalSample(u64 counter, int tid, EventType event_type, Event* event, int num_frames, ASGCT_CallFrame* frames);
     void recordExternalSample(u64 counter, int tid, EventType event_type, Event* event, u32 call_trace_id);
     void writeLog(LogLevel level, const char* message);

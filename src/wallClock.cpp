@@ -72,30 +72,39 @@ bool waitWhile(std::function<bool()> condition, std::chrono::duration<float> tim
 }
 
 std::atomic<int> _thread_id;
-std::atomic<void*> _ucontext;
+ucontext_t _ucontext; // simple but probably not thread safe
+std::atomic<bool> _ucontext_valid = false;
 std::atomic<JNIEnv*> _jni;
 
+bool skipWait = std::getenv("SKIP_WAIT") != nullptr;
+
+std::atomic<size_t> count = 0;
+std::atomic<size_t> count2 = 0;
+
 bool WallClock::walkStack(int thread_id) {
+    count++;
     // set the current thread
     _thread_id = thread_id;
-    _ucontext = nullptr;
+    _ucontext_valid = false;
     _jni = nullptr;
 
     // send the signal to the sampled thread
     OS::sendSignalToThread(thread_id, SIGVTALRM); // send signal to thread
 
     // wait till the signal handler has set the ucontext and jni
-    if (!waitWhile([&](){ return _ucontext == nullptr;}, std::chrono::milliseconds(10))) {
+    if (!waitWhile([&](){ return !_ucontext_valid;}, std::chrono::milliseconds(10))) {
         return false;
     }
-
+    
     // walk the stack
+    count2++;
+    ucontext_t ucontext = _ucontext;
     ExecutionEvent event;
-    event._thread_state = _sample_idle_threads ? getThreadState(_ucontext) : THREAD_UNKNOWN;
-    u64 ret = Profiler::instance()->recordSample(_ucontext, _interval, EXECUTION_SAMPLE, &event, _jni);
-
-    // reset the ucontext, triggering the signal handler
-    _ucontext = nullptr;
+    event._thread_state = _sample_idle_threads ? getThreadState(&ucontext) : THREAD_UNKNOWN;
+    u64 ret = Profiler::instance()->recordSample(&ucontext, _interval, EXECUTION_SAMPLE, &event, _jni, !skipWait);
+    
+    // trigger the signal handler to finish
+    _ucontext_valid = false;
     return ret != 0;
 }
 
@@ -104,11 +113,16 @@ void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
         // not the thread we are currently sampling
         return;
     }
-    _ucontext = ucontext;
+    // copy the ucontext, as it might be modified while the thread is running
+    _ucontext = *(ucontext_t*)ucontext;
+    _ucontext_valid = true;
     _jni = VM::jni();
+    if (skipWait) {
+        return;
+    }
     // wait for the stack to be walked, and block the thread from executing
     // we do not timeout here, as this leads to difficult bugs
-    waitWhile([&](){ return _ucontext != nullptr;});
+    waitWhile([&](){ return _ucontext_valid.load();});
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {
@@ -145,6 +159,8 @@ void WallClock::stop() {
 }
 
 void WallClock::timerLoop() {
+    VM::attachThread("Async-profiler Sampler");
+
     int self = OS::threadId();
     ThreadFilter* thread_filter = Profiler::instance()->threadFilter();
     bool thread_filter_enabled = thread_filter->enabled();
@@ -194,7 +210,11 @@ void WallClock::timerLoop() {
         } else {
             OS::sleep(_interval);
         }
+        if (count % 1000 == 0) {
+            fprintf(stderr, "count: %zu, count2: %zu\n", count.load(), count2.load());
+        }
     }
+
 
     delete thread_list;
 }

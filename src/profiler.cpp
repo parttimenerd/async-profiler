@@ -593,7 +593,7 @@ void Profiler::fillFrameTypes(ASGCT_CallFrame* frames, int num_frames, NMethod* 
     }
 }
 
-u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni) {
+u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Event* event, JNIEnv* jni, bool recordNative) {
     atomicInc(_total_samples);
 
     int tid = OS::threadId();
@@ -627,8 +627,9 @@ u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Ev
     }
 
     StackContext java_ctx = {0};
-    num_frames += getNativeTrace(ucontext, frames + num_frames, event_type, tid, &java_ctx);
-
+    if (recordNative) {
+        num_frames += getNativeTrace(ucontext, frames + num_frames, event_type, tid, &java_ctx);
+    }
     if (event_type <= EXECUTION_SAMPLE) {
         // Async events
         int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx, jni);
