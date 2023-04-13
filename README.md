@@ -1,4 +1,26 @@
-# Fork 
+# Fork
+
+Walk the stack in a separate thread when wall-clock profiling. Requires the JDK build from
+https://github.com/parttimenerd/jdk/tree/dont_use_thread_current.
+
+Example:
+
+```sh
+# get a benchmark
+wget https://github.com/renaissance-benchmarks/renaissance/releases/download/v0.14.2/renaissance-gpl-0.14.2.jar -O renaissance.jar
+
+# clone and build the JDK
+git clone https://github.com/parttimenerd/jdk/tree/dont_use_thread_current
+(cd jdk && bash configure && make images)
+
+# build async-profiler
+make JAVA_TARGET=8
+
+# run the benchmark
+jdk/build/linux-x86_64-server-release/images/jdk/bin/java -agentpath:./build/lib/libasyncProfiler.so=start,flat=interval=10ms,event=wall,flamegraph,file=flame.html -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -jar renaissance.jar dotty
+```
+
+More information in the blog post: https://mostlynerdless.de/?p=758
 
 # async-profiler
 
