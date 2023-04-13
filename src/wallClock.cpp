@@ -22,6 +22,7 @@
 #include "stackFrame.h"
 #include <atomic>
 #include <functional>
+#include <chrono>
 
 
 // Maximum number of threads sampled in one iteration. This limit serves as a throttle
@@ -59,39 +60,44 @@ ThreadState WallClock::getThreadState(void* ucontext) {
     return THREAD_RUNNING;
 }
 
-bool waitWhile(std::function<bool()> condition, long timeoutNs = 10000000) {
-    long start = OS::nanotime();
+/** waits as long as condition holds with a timeout, returns false if timeout is hit*/
+bool waitWhile(std::function<bool()> condition, std::chrono::duration<float> timeout = std::chrono::milliseconds(10)) {
+    auto start = std::chrono::system_clock::now();
     while (condition()) {
-        if (OS::nanotime() - start > timeoutNs) {
+        if (std::chrono::system_clock::now() - start > timeout) {
             return false;
         }
     }
     return true;
 }
 
-std::atomic<void*> _ucontext;
+std::atomic<int> _thread_id;
+std::atomic<void*> _ucontext = nullptr;
 std::atomic<JNIEnv*> _jni;
 
 bool WallClock::walkStack(int thread_id) {
+    _thread_id = thread_id;
     _ucontext = nullptr;
     _jni = nullptr;
     OS::sendSignalToThread(thread_id, SIGVTALRM); // send signal to thread
-    if (!waitWhile([&](){ return _ucontext.load() == nullptr;})) { // wait for the ucontext and jni to be set
+    if (!waitWhile([&](){ return _ucontext == nullptr;})) { // wait for the ucontext and jni to be set
         return false;
     }
 
-    void* ucontext = _ucontext.load();
     ExecutionEvent event;
-    event._thread_state = _sample_idle_threads ? getThreadState(ucontext) : THREAD_UNKNOWN;
-    u64 ret = Profiler::instance()->recordSample(ucontext, _interval, EXECUTION_SAMPLE, &event, _jni.load());
+    event._thread_state = _sample_idle_threads ? getThreadState(_ucontext) : THREAD_UNKNOWN;
+    u64 ret = Profiler::instance()->recordSample(_ucontext, _interval, EXECUTION_SAMPLE, &event, _jni);
     _ucontext = nullptr;
     return ret != 0;
 }
 
 void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
+    if (OS::threadId() != _thread_id) {
+        return;
+    }
     _ucontext = ucontext;
     _jni = VM::jni();
-    waitWhile([&](){ return _ucontext.load() != nullptr;}); // wait for the signal to be processed
+    waitWhile([&](){ return _ucontext != nullptr;}); // wait for the signal to be processed
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {
