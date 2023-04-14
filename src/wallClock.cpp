@@ -85,7 +85,7 @@ bool WallClock::walkStack(int thread_id) {
     OS::sendSignalToThread(thread_id, SIGVTALRM); // send signal to thread
 
     // wait till the signal handler has set the ucontext and jni
-    if (!waitWhile([&](){ return _ucontext == nullptr;}, std::chrono::nanoseconds(_interval))) {
+    if (!waitWhile([&](){ return _ucontext == nullptr;}, std::chrono::milliseconds(10))) {
         return false;
     }
 
