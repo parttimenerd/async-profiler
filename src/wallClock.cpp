@@ -61,7 +61,7 @@ ThreadState WallClock::getThreadState(void* ucontext) {
 }
 
 /** waits as long as condition holds with a timeout, returns false if timeout is hit*/
-bool waitWhile(std::function<bool()> condition, std::chrono::duration<float> timeout = std::chrono::milliseconds(10)) {
+bool waitWhile(std::function<bool()> condition, std::chrono::duration<float> timeout = std::chrono::duration<float>::max()) {
     auto start = std::chrono::system_clock::now();
     while (condition()) {
         if (std::chrono::system_clock::now() - start > timeout) {
@@ -72,32 +72,43 @@ bool waitWhile(std::function<bool()> condition, std::chrono::duration<float> tim
 }
 
 std::atomic<int> _thread_id;
-std::atomic<void*> _ucontext = nullptr;
+std::atomic<void*> _ucontext;
 std::atomic<JNIEnv*> _jni;
 
 bool WallClock::walkStack(int thread_id) {
+    // set the current thread
     _thread_id = thread_id;
     _ucontext = nullptr;
     _jni = nullptr;
+
+    // send the signal to the sampled thread
     OS::sendSignalToThread(thread_id, SIGVTALRM); // send signal to thread
-    if (!waitWhile([&](){ return _ucontext == nullptr;})) { // wait for the ucontext and jni to be set
+
+    // wait till the signal handler has set the ucontext and jni
+    if (!waitWhile([&](){ return _ucontext == nullptr;}, std::chrono::nanoseconds(_interval))) {
         return false;
     }
 
+    // walk the stack
     ExecutionEvent event;
     event._thread_state = _sample_idle_threads ? getThreadState(_ucontext) : THREAD_UNKNOWN;
     u64 ret = Profiler::instance()->recordSample(_ucontext, _interval, EXECUTION_SAMPLE, &event, _jni);
+
+    // reset the ucontext, triggering the signal handler
     _ucontext = nullptr;
     return ret != 0;
 }
 
 void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
     if (OS::threadId() != _thread_id) {
+        // not the thread we are currently sampling
         return;
     }
     _ucontext = ucontext;
     _jni = VM::jni();
-    waitWhile([&](){ return _ucontext != nullptr;}); // wait for the signal to be processed
+    // wait for the stack to be walked, and block the thread from executing
+    // we do not timeout here, as this leads to difficult bugs
+    waitWhile([&](){ return _ucontext != nullptr;});
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {
