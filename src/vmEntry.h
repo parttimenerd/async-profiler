@@ -148,6 +148,10 @@ class VM {
         return _vm->GetEnv((void**)&jni, JNI_VERSION_1_6) == 0 ? jni : NULL;
     }
 
+    static JavaVM* vm() {
+        return _vm;
+    }
+
     static JNIEnv* attachThread(const char* name) {
         JNIEnv* jni;
         JavaVMAttachArgs args = {JNI_VERSION_1_6, (char*)name, NULL};
