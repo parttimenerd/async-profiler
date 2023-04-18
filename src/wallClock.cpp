@@ -66,10 +66,9 @@ bool waitWhile(std::function<bool()> condition, long timeout_ns = -1) {
     while (condition()) {
         long diff = OS::nanotime() - start;
         if (timeout_ns != -1 && diff > timeout_ns) {
-           // fprintf(stderr, "timeout hit %ld\n", diff);
             return false;
         }
-        OS::sleep(1000);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
     }
     return true;
 }
@@ -82,32 +81,34 @@ struct Data {
 std::atomic<int> _thread_id;
 std::atomic<Data*> _thread_data;
 std::atomic<bool> _thread_data_settable;
+std::atomic<bool> _thread_data_ready;
+std::atomic<bool> _stack_walked;
 
 bool WallClock::walkStack(int thread_id) {
     // set the current thread
     _thread_id = thread_id;
     _thread_data = nullptr;
     _thread_data_settable = true;
+    _stack_walked = false;
+    _thread_data_ready = false;
 
     // send the signal to the sampled thread
     if (!OS::sendSignalToThread(thread_id, SIGVTALRM)) { // send signal to thread
         _thread_id = -1;
         return false;
     }
-    //set_in_signal_handler(thread_id);
     // wait till the signal handler has set the ucontext and jni
-    Data *data = nullptr;
-    if (!waitWhile([&](){ data = _thread_data.load(); return data == nullptr;}, 10 * 1000 * 1000)) {
+    if (!waitWhile([&](){ return !_thread_data_ready;}, 10 * 1000 * 1000)) {
         _thread_id = -1;
         return false;
     }
+    Data *data = _thread_data.load();
     // walk the stack
     ExecutionEvent event;
     event._thread_state = _sample_idle_threads ? getThreadState(data->ucontext) : THREAD_UNKNOWN;
     u64 ret = Profiler::instance()->recordSample(data->ucontext, _interval, EXECUTION_SAMPLE, &event, data->jni);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     // reset the ucontext, triggering the signal handler
-    _thread_data = nullptr;
+    _stack_walked = true;
     return true;
 }
 
@@ -124,15 +125,16 @@ void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
         return;
     }
     Data data{ucontext, VM::jni()};
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     // VM::jni() calls without a sleep afterwards cause problems
     // I'm unsure why
-    OS::sleep(1000);
-    _thread_data = &data;
+        // VM::jni() calls without a sleep afterwards cause problems
+    // I'm unsure why
     std::atomic_thread_fence(std::memory_order_seq_cst);
+    _thread_data = &data;
+    _thread_data_ready = true;
     // wait for the stack to be walked, and block the thread from executing
     // we do not timeout here, as this leads to difficult bugs
-    waitWhile([&](){ return OS::threadId() == _thread_id && _thread_data != nullptr;});
+    waitWhile([&](){ return !_stack_walked;});
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {
