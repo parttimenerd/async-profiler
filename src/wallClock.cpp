@@ -68,7 +68,7 @@ bool waitWhile(std::function<bool()> condition, long timeout_ns = -1) {
         if (timeout_ns != -1 && diff > timeout_ns) {
             return false;
         }
-        std::atomic_thread_fence(std::memory_order_seq_cst);
+        OS::sleep(1000);
     }
     return true;
 }
@@ -124,11 +124,12 @@ void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
         // another signal handler invocation is already in progress
         return;
     }
-    Data data{ucontext, VM::jni()};
+    JNIEnv *jni;
+    VM::vm()->GetEnv((void**)&jni, JNI_VERSION_1_6);
     // VM::jni() calls without a sleep afterwards cause problems
     // I'm unsure why
-        // VM::jni() calls without a sleep afterwards cause problems
-    // I'm unsure why
+    OS::sleep(1000);
+    Data data{ucontext, jni};
     std::atomic_thread_fence(std::memory_order_seq_cst);
     _thread_data = &data;
     _thread_data_ready = true;
