@@ -89,7 +89,7 @@ typedef struct {
     ASGCT_CallFrame* frames;
 } ASGCT_CallTrace;
 
-typedef void (*AsyncGetCallTrace)(ASGCT_CallTrace*, jint, void*);
+typedef void (*AsyncGetCallTrace)(ASGCT_CallTrace*, jint, void*, jlong);
 
 typedef struct {
     void* unused[38];
