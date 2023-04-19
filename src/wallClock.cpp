@@ -149,6 +149,7 @@ void WallClock::stop() {
 }
 
 void WallClock::timerLoop() {
+    VM::attachThread("Async-profiler Sampler");
     int self = OS::threadId();
     ThreadFilter* thread_filter = Profiler::instance()->threadFilter();
     bool thread_filter_enabled = thread_filter->enabled();
