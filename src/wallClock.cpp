@@ -68,7 +68,6 @@ bool waitWhile(std::function<bool()> condition, long timeout_ns = -1) {
         if (timeout_ns != -1 && diff > timeout_ns) {
             return false;
         }
-        OS::sleep(1000);
     }
     return true;
 }
