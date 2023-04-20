@@ -102,7 +102,7 @@ bool WallClock::walkStack(int thread_id) {
     u64 ret = Profiler::instance()->recordSample(data->ucontext, _interval, EXECUTION_SAMPLE, &event, data->jni);
     // reset the thread_data, triggering the signal handler
     _thread_data = nullptr;
-    return true;
+    return ret != 0;
 }
 
 void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
