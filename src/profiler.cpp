@@ -361,10 +361,8 @@ int Profiler::getJavaTraceAsync(void* ucontext, ASGCT_CallFrame* frames, int max
     JitWriteProtection jit(false);
     ASGCT_CallTrace trace = {nullptr, 0, frames};
     VM::_asyncGetCallTrace(&trace, max_depth, ucontext, osThreadId);
-    JNIEnv *jni;
-    if (trace.num_frames != ticks_unknown_not_Java) {
-        jni = trace.env;
-    } else {
+    JNIEnv *jni = trace.env;
+    if (jni == NULL) {
         return 0;
     }
     VMThread* vm_thread = VMThread::fromEnv(jni);
